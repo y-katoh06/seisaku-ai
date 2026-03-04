@@ -2,45 +2,75 @@
 #  ai_clients.py
 # -----------------------------------------------
 # 役割：
-# - Claude API の呼び出しを一元管理する
-# - call_gpt    → Claude claude-opus に委譲（司令塔・構造化・タグ分類など）
-# - call_claude → Claude claude-sonnet に委譲（実装・検証など）
-# - run_memory_improvement → 基準進化AIの外部メモリ改善
+# - OpenAI / Anthropic の呼び出しを一元管理する
+#
+# モデル割り当て：
+# - 司令塔AI    → Claude Sonnet（判断・構造化）
+# - 構造化AI    → GPT-4o（設計・整理）
+# - 実装AI      → Claude Sonnet（コード生成）
+# - 検証AI      → Claude Opus（精度重視のバグ検出）
+# - 基準進化AI  → GPT-4o（分析・改善）
+# - シミュレーション系 → GPT-4o mini（軽量・文章生成）
 # ================================================
 
 import os
 from anthropic import Anthropic
+from openai import OpenAI
 
-client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+openai_client    = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# 用途別モデル
-GPT_MODEL    = "claude-opus-4-6"     # 司令塔・構造化・分類など思考系
-CLAUDE_MODEL = "claude-sonnet-4-6"   # 実装・検証など生成系
+# --- モデル定義 ---
+CLAUDE_SONNET = "claude-sonnet-4-6"   # 司令塔AI・実装AI
+CLAUDE_OPUS   = "claude-opus-4-6"     # 検証AI（精度重視）
+GPT4O         = "gpt-4o"              # 構造化AI・基準進化AI
+GPT4O_MINI    = "gpt-4o-mini"         # シミュレーション系（軽量）
+
+
+def _call_anthropic(prompt: str, model: str, max_tokens: int = 8192) -> str:
+    message = anthropic_client.messages.create(
+        model=model,
+        max_tokens=max_tokens,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return message.content[0].text
+
+
+def _call_openai(prompt: str, model: str, max_tokens: int = 4096) -> str:
+    response = openai_client.chat.completions.create(
+        model=model,
+        max_tokens=max_tokens,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.choices[0].message.content
+
+
+def call_supervisor(prompt: str) -> str:
+    """司令塔AI：Claude Sonnet（判断・構造化）"""
+    return _call_anthropic(prompt, CLAUDE_SONNET)
 
 
 def call_gpt(prompt: str) -> str:
     """
-    司令塔AI・構造化AI・タグ分類など「思考・判断」系の呼び出し。
+    構造化AI・基準進化AI・タグ分類など：GPT-4o
     ※ 関数名は既存コードとの互換性のため call_gpt のまま。
     """
-    message = client.messages.create(
-        model=GPT_MODEL,
-        max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return message.content[0].text
+    return _call_openai(prompt, GPT4O)
 
 
 def call_claude(prompt: str) -> str:
-    """
-    実装AI・検証AIなど「生成・検証」系の呼び出し。
-    """
-    message = client.messages.create(
-        model=CLAUDE_MODEL,
-        max_tokens=8192,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return message.content[0].text
+    """実装AI：Claude Sonnet（コード生成）"""
+    return _call_anthropic(prompt, CLAUDE_SONNET)
+
+
+def call_debugger(prompt: str) -> str:
+    """検証AI：Claude Opus（精度重視のバグ検出）"""
+    return _call_anthropic(prompt, CLAUDE_OPUS)
+
+
+def call_simulation(prompt: str) -> str:
+    """シミュレーション系AI：GPT-4o mini（軽量・文章生成）"""
+    return _call_openai(prompt, GPT4O_MINI)
 
 
 def run_memory_improvement(
@@ -53,10 +83,7 @@ def run_memory_improvement(
     score_json: dict,
     next_tips: str,
 ) -> str:
-    """
-    基準進化AI：外部メモリを改善・進化させる。
-    重複排除・案件最適化・スコア傾向分析を行う。
-    """
+    """基準進化AI：GPT-4o（分析・改善）"""
     prompt = f"""
 あなたは制作パイプラインの 基準進化AI です。
 
@@ -101,4 +128,4 @@ def run_memory_improvement(
 司令塔AIへのフィードバック：
 基準進化AI自身の学習ログ：
 """
-    return call_gpt(prompt)
+    return _call_openai(prompt, GPT4O)

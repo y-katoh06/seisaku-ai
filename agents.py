@@ -10,7 +10,7 @@
 
 import time
 
-from ai_clients import call_gpt, call_claude, run_memory_improvement
+from ai_clients import call_gpt, call_claude, call_supervisor, call_debugger, call_simulation, run_memory_improvement
 from notion_client import save_log_to_notion, load_external_memory
 from notion_writer import send_score_to_supabase
 from score_sync import save_score_to_notion_score_db
@@ -133,7 +133,7 @@ def run_supervisor(user_request: str, company_name: str, client_name: str):
 GO確認
 「この内容で制作を開始してよいですか？」
 """
-    return call_gpt(prompt)
+    return call_supervisor(prompt)
 
 
 # ================================================
@@ -306,7 +306,7 @@ def run_debugger(code_output: str):
 【検証対象の実装結果】
 {code_output}
 """
-    return call_claude(prompt)
+    return call_debugger(prompt)
 
 
 # ================================================
@@ -370,7 +370,7 @@ def run_simulation_request(theme: str, personality: str = "丁寧で論理的") 
 ────────────────────────
 テーマ：{theme}
 """
-    return call_gpt(prompt)
+    return call_simulation(prompt)
 
 
 # ================================================
@@ -401,7 +401,7 @@ def run_simulation_feedback(result: dict) -> str:
 最終コード（抜粋）：
 {str(result.get("code", ""))[:500]}
 """
-    return call_gpt(prompt)
+    return call_simulation(prompt)
 
 
 # ================================================
@@ -431,7 +431,7 @@ def run_simulation_log(request: str, feedback: str, personality: str) -> str:
 依頼内容：{request}
 フィードバック：{feedback}
 """
-    return call_gpt(prompt)
+    return call_simulation(prompt)
 
 
 # ================================================
